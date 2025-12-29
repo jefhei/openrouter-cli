@@ -51,8 +51,8 @@ openrouter = "openrouter_cli.cli:main"
 [project.urls]
 Homepage = "https://github.com/your-username/openrouter-cli"
 Documentation = "https://github.com/your-username/openrouter-cli#readme"
-Repository = "https://github.com/your-username/openrouter-cli"
-Issues = "https://github.com/your-username/openrouter-cli/issues"
+Repository = "https://github.com/jefhei/openrouter-cli"
+Issues = "https://github.com/jefhei/openrouter-cli/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openrouter_cli"]
@@ -82,3 +82,4 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+

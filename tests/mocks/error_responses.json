@@ -1,0 +1,58 @@
+{
+  "authentication_error": {
+    "error": {
+      "code": 401,
+      "message": "Invalid API key provided. Please check your API key and try again.",
+      "type": "authentication_error"
+    }
+  },
+  "rate_limit_error": {
+    "error": {
+      "code": 429,
+      "message": "Rate limit exceeded. Please wait before making another request.",
+      "type": "rate_limit_error",
+      "metadata": {
+        "retry_after": 60
+      }
+    }
+  },
+  "model_not_found": {
+    "error": {
+      "code": 404,
+      "message": "Model 'nonexistent/model' not found. Please check the model ID and try again.",
+      "type": "invalid_request_error"
+    }
+  },
+  "insufficient_credits": {
+    "error": {
+      "code": 402,
+      "message": "Insufficient credits. Please add credits to your account.",
+      "type": "insufficient_credits_error"
+    }
+  },
+  "invalid_request": {
+    "error": {
+      "code": 400,
+      "message": "Invalid request: 'temperature' must be between 0 and 2.",
+      "type": "invalid_request_error"
+    }
+  },
+  "server_error": {
+    "error": {
+      "code": 500,
+      "message": "An internal server error occurred. Please try again later.",
+      "type": "server_error"
+    }
+  },
+  "context_length_exceeded": {
+    "error": {
+      "code": 400,
+      "message": "This model's maximum context length is 128000 tokens. Your messages resulted in 150000 tokens.",
+      "type": "invalid_request_error",
+      "metadata": {
+        "max_context_length": 128000,
+        "actual_tokens": 150000
+      }
+    }
+  }
+}

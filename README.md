@@ -10,7 +10,10 @@ A command-line interface for interacting with [OpenRouter](https://openrouter.ai
 - **Multi-turn conversations** with session persistence
 - **Cost tracking** and usage monitoring
 - **Configurable parameters** (temperature, max tokens, top_p, etc.)
-- **Pipe-friendly** â€” read prompts from stdin, output to stdout
+- **Pipe-friendly** — read prompts from stdin, output to stdout
+- **MCP Integration** — connect AI models to external tools:
+  - **Filesystem MCP** — read, write, and manage local files
+  - **GitHub MCP** — manage repositories, issues, PRs, and workflows
 
 ## Installation
 
@@ -204,6 +207,12 @@ openrouter chat --require-params tools,json_mode "Hello"
 | `conversations list` | List saved conversations |
 | `conversations show` | Display conversation history |
 | `conversations delete` | Delete a saved conversation |
+| `mcp list` | List configured MCP servers |
+| `mcp status` | Show MCP server status |
+| `mcp tools` | View available tools from a server |
+| `mcp test` | Test MCP server connection |
+| `mcp enable` | Enable an MCP server |
+| `mcp disable` | Disable an MCP server |
 | `version` | Show CLI version |
 
 ## Output Formats
@@ -615,6 +624,236 @@ openrouter chat \
   --mcp memory \
   --mcp git \
   "Help me refactor this repository"
+```
+
+## MCP GitHub Integration
+
+The CLI supports [GitHub's official MCP Server](https://github.com/github/github-mcp-server), enabling AI models to interact directly with GitHub repositories, issues, pull requests, workflows, and more.
+
+### What Can GitHub MCP Do?
+
+- **Repository Management**: Browse code, search files, analyze commits, create branches
+- **Issue & PR Automation**: Create, update, and manage issues and pull requests
+- **CI/CD Intelligence**: Monitor GitHub Actions workflows, analyze build failures
+- **Code Analysis**: Examine security findings, review Dependabot alerts
+- **Team Collaboration**: Access discussions, manage notifications
+
+### Prerequisites
+
+```bash
+# Docker is required for the official GitHub MCP server
+docker --version  # Ensure Docker is installed and running
+
+# Create a GitHub Personal Access Token
+# Visit: https://github.com/settings/tokens
+# Grant appropriate scopes (repo, read:org, workflow, etc.)
+```
+
+### Configuration
+
+Add the GitHub MCP server to your config file (`~/.config/openrouter/config.toml`):
+
+```toml
+[mcp.servers.github]
+enabled = true
+command = "docker"
+args = [
+    "run", "-i", "--rm",
+    "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "ghcr.io/github/github-mcp-server"
+]
+
+[mcp.servers.github.env]
+GITHUB_PERSONAL_ACCESS_TOKEN = "ghp_your_token_here"
+```
+
+### Available GitHub Tools
+
+When GitHub MCP is enabled, models have access to 40+ tools including:
+
+| Category | Tools |
+|----------|-------|
+| **Repositories** | `search_repositories`, `get_file_contents`, `create_branch`, `push_files`, `create_or_update_file` |
+| **Issues** | `list_issues`, `create_issue`, `update_issue`, `add_issue_comment`, `search_issues` |
+| **Pull Requests** | `list_pull_requests`, `create_pull_request`, `merge_pull_request`, `get_pull_request_diff` |
+| **Actions** | `list_workflows`, `list_workflow_runs`, `get_workflow_run`, `run_workflow` |
+| **Users** | `get_me`, `search_users` |
+| **Code Security** | `list_code_scanning_alerts`, `list_dependabot_alerts`, `list_secret_scanning_alerts` |
+
+### Usage Examples
+
+```bash
+# List your repositories
+openrouter chat --mcp github --no-stream \
+  "List my recent repositories"
+
+# Create an issue
+openrouter chat --mcp github --no-stream \
+  "Create an issue in my project-name repo about adding unit tests"
+
+# Search code across repositories
+openrouter chat --mcp github --no-stream \
+  "Search for Python files using asyncio in my repos"
+
+# Check GitHub Actions status
+openrouter chat --mcp github --no-stream \
+  "Show me recent workflow runs in my main project"
+
+# Review pull requests
+openrouter chat --mcp github --no-stream \
+  "List open pull requests in owner/repo and summarize them"
+
+# Analyze repository
+openrouter chat --mcp github --no-stream \
+  "Analyze the structure of github/github-mcp-server repository"
+```
+
+### Combining with Other MCP Servers
+
+Use GitHub MCP alongside filesystem MCP for powerful workflows:
+
+```bash
+# Read local files and create GitHub issues
+openrouter chat --mcp github --mcp filesystem --no-stream \
+  "Read the TODO.md file and create GitHub issues for each item"
+
+# Sync local changes to GitHub
+openrouter chat --mcp github --mcp filesystem --no-stream \
+  "Read my local README.md and update the one in my GitHub repo"
+
+# Code review with local context
+openrouter chat --mcp github --mcp filesystem --no-stream \
+  "Compare my local changes with the main branch on GitHub"
+```
+
+### MCP Commands for GitHub
+
+```bash
+# List available GitHub tools (starts the server)
+openrouter mcp tools github --refresh
+
+# Test GitHub server connection
+openrouter mcp test github
+
+# View server status
+openrouter mcp status
+```
+
+### GitHub Enterprise Support
+
+For GitHub Enterprise Server or Enterprise Cloud with data residency:
+
+```toml
+[mcp.servers.github]
+enabled = true
+command = "docker"
+args = [
+    "run", "-i", "--rm",
+    "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "-e", "GITHUB_HOST",
+    "ghcr.io/github/github-mcp-server"
+]
+
+[mcp.servers.github.env]
+GITHUB_PERSONAL_ACCESS_TOKEN = "ghp_your_token_here"
+GITHUB_HOST = "https://github.your-company.com"
+```
+
+### Tool Filtering
+
+Restrict which GitHub tools are available:
+
+```toml
+[mcp.servers.github]
+enabled = true
+command = "docker"
+args = ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"]
+
+# Only allow read operations
+allowed_tools = [
+    "get_me",
+    "search_repositories", 
+    "get_file_contents",
+    "list_issues",
+    "list_pull_requests"
+]
+
+# Or block write operations
+# blocked_tools = [
+#     "create_issue",
+#     "create_pull_request",
+#     "push_files",
+#     "merge_pull_request"
+# ]
+
+[mcp.servers.github.env]
+GITHUB_PERSONAL_ACCESS_TOKEN = "ghp_your_token_here"
+```
+
+### Security Considerations
+
+> ⚠️ **Important**: GitHub MCP gives AI models access to your GitHub account based on your token's permissions.
+
+**Best Practices:**
+
+1. **Minimum scopes**: Only grant necessary token permissions
+   - `repo` - Repository access
+   - `read:org` - Organization read access
+   - `workflow` - GitHub Actions (if needed)
+
+2. **Use separate tokens**: Create dedicated tokens for the CLI
+   ```bash
+   # Don't reuse tokens from other applications
+   ```
+
+3. **Rotate regularly**: Update your token periodically
+   ```bash
+   openrouter config set mcp.servers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN "ghp_new_token"
+   ```
+
+4. **Read-only mode**: Use `--mcp-readonly` for analysis tasks
+   ```bash
+   openrouter chat --mcp github --mcp-readonly --no-stream "Analyze this repo"
+   ```
+
+### Troubleshooting
+
+**Docker image won't pull:**
+```bash
+# Logout from ghcr.io (clears stale tokens)
+docker logout ghcr.io
+
+# Pull explicitly
+docker pull ghcr.io/github/github-mcp-server
+```
+
+**Server starts but tools don't load:**
+```bash
+# Test Docker directly
+export GITHUB_PERSONAL_ACCESS_TOKEN="ghp_your_token"
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN \
+  ghcr.io/github/github-mcp-server
+
+# Should show: "GitHub MCP Server running on stdio"
+```
+
+**Authentication errors:**
+```bash
+# Verify token is valid
+curl -H "Authorization: token ghp_your_token" https://api.github.com/user
+
+# Check token in config
+openrouter config show | grep -A5 github
+```
+
+**Tools not being used by model:**
+```bash
+# MCP tools require non-streaming mode
+openrouter chat --mcp github --no-stream "List my repos"
+
+# Use verbose mode to debug
+openrouter chat --mcp github --no-stream --verbose "List my repos"
 ```
 
 ## License

@@ -1,0 +1,22 @@
+{
+  "id": "gen-1234567890abcdef",
+  "model": "anthropic/claude-sonnet-4",
+  "object": "chat.completion",
+  "created": 1704067200,
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I'm Claude, an AI assistant created by Anthropic. How can I help you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 22,
+    "total_tokens": 34
+  },
+  "system_fingerprint": "fp_abc123"
+}

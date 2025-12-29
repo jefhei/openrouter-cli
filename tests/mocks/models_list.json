@@ -1,0 +1,142 @@
+{
+  "data": [
+    {
+      "id": "openai/gpt-4o",
+      "name": "GPT-4o",
+      "description": "OpenAI's most advanced multimodal model",
+      "context_length": 128000,
+      "pricing": {
+        "prompt": "0.000005",
+        "completion": "0.000015",
+        "image": "0.007225",
+        "request": "0"
+      },
+      "top_provider": {
+        "context_length": 128000,
+        "max_completion_tokens": 16384,
+        "is_moderated": true
+      },
+      "per_request_limits": null,
+      "architecture": {
+        "modality": "text+image->text",
+        "tokenizer": "GPT",
+        "instruct_type": "none"
+      }
+    },
+    {
+      "id": "openai/gpt-4o-mini",
+      "name": "GPT-4o Mini",
+      "description": "Affordable small model for lightweight tasks",
+      "context_length": 128000,
+      "pricing": {
+        "prompt": "0.00000015",
+        "completion": "0.0000006",
+        "image": "0.007225",
+        "request": "0"
+      },
+      "top_provider": {
+        "context_length": 128000,
+        "max_completion_tokens": 16384,
+        "is_moderated": true
+      },
+      "per_request_limits": null,
+      "architecture": {
+        "modality": "text+image->text",
+        "tokenizer": "GPT",
+        "instruct_type": "none"
+      }
+    },
+    {
+      "id": "anthropic/claude-sonnet-4",
+      "name": "Claude Sonnet 4",
+      "description": "Anthropic's balanced model for most tasks",
+      "context_length": 200000,
+      "pricing": {
+        "prompt": "0.000003",
+        "completion": "0.000015",
+        "image": "0.0048",
+        "request": "0"
+      },
+      "top_provider": {
+        "context_length": 200000,
+        "max_completion_tokens": 8192,
+        "is_moderated": true
+      },
+      "per_request_limits": null,
+      "architecture": {
+        "modality": "text+image->text",
+        "tokenizer": "Claude",
+        "instruct_type": "claude"
+      }
+    },
+    {
+      "id": "anthropic/claude-haiku-4",
+      "name": "Claude Haiku 4",
+      "description": "Anthropic's fastest and most compact model",
+      "context_length": 200000,
+      "pricing": {
+        "prompt": "0.0000008",
+        "completion": "0.000004",
+        "image": "0.0048",
+        "request": "0"
+      },
+      "top_provider": {
+        "context_length": 200000,
+        "max_completion_tokens": 8192,
+        "is_moderated": true
+      },
+      "per_request_limits": null,
+      "architecture": {
+        "modality": "text+image->text",
+        "tokenizer": "Claude",
+        "instruct_type": "claude"
+      }
+    },
+    {
+      "id": "google/gemini-pro-1.5",
+      "name": "Gemini Pro 1.5",
+      "description": "Google's advanced multimodal model",
+      "context_length": 2000000,
+      "pricing": {
+        "prompt": "0.00000125",
+        "completion": "0.000005",
+        "image": "0.00265",
+        "request": "0"
+      },
+      "top_provider": {
+        "context_length": 2000000,
+        "max_completion_tokens": 8192,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "architecture": {
+        "modality": "text+image->text",
+        "tokenizer": "Gemini",
+        "instruct_type": "gemini"
+      }
+    },
+    {
+      "id": "meta-llama/llama-3.1-70b-instruct",
+      "name": "Llama 3.1 70B Instruct",
+      "description": "Meta's powerful open-source model",
+      "context_length": 131072,
+      "pricing": {
+        "prompt": "0.00000052",
+        "completion": "0.00000075",
+        "image": "0",
+        "request": "0"
+      },
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": 4096,
+        "is_moderated": false
+      },
+      "per_request_limits": null,
+      "architecture": {
+        "modality": "text->text",
+        "tokenizer": "Llama3",
+        "instruct_type": "llama3"
+      }
+    }
+  ]
+}
