@@ -25,7 +25,7 @@ pip install openrouter-cli
 pipx install openrouter-cli
 
 # From source
-git clone https://github.com/your-username/openrouter-cli.git
+git clone https://github.com/jefhei/openrouter-cli.git
 cd openrouter-cli
 pip install -e .
 ```
