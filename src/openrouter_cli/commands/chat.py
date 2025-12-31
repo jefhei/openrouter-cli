@@ -22,6 +22,208 @@ from .conversations import load_conversation, save_conversation
 console = Console()
 
 
+def parse_tool_call(tool_call: dict) -> dict:
+    """Parse a tool call dict and extract components with error handling.
+    
+    Args:
+        tool_call: The tool call dictionary from the API response.
+        
+    Returns:
+        A dict with keys: id, name, arguments, error
+        - id: The tool call ID (empty string if missing)
+        - name: The function name (empty string if missing)
+        - arguments: Parsed arguments dict (empty dict if parsing fails)
+        - error: Error message if any issue occurred, None otherwise
+    """
+    result = {
+        "id": "",
+        "name": "",
+        "arguments": {},
+        "error": None,
+    }
+    
+    # Extract ID (optional, default to empty string)
+    result["id"] = tool_call.get("id", "")
+    
+    # Extract function data
+    func_data = tool_call.get("function")
+    if func_data is None:
+        result["error"] = "Tool call missing 'function' field"
+        return result
+    
+    if not isinstance(func_data, dict):
+        result["error"] = "Tool call 'function' field is not a dictionary"
+        return result
+    
+    # Extract function name
+    func_name = func_data.get("name")
+    if not func_name:
+        result["error"] = "Tool call missing function 'name' field"
+        return result
+    result["name"] = func_name
+    
+    # Extract and parse arguments
+    func_args = func_data.get("arguments", "{}")
+    
+    if func_args is None or func_args == "":
+        result["arguments"] = {}
+    elif isinstance(func_args, dict):
+        result["arguments"] = func_args
+    elif isinstance(func_args, str):
+        try:
+            result["arguments"] = json.loads(func_args)
+        except json.JSONDecodeError as e:
+            result["arguments"] = {}
+            result["error"] = f"Failed to parse tool arguments as JSON: {e}"
+    else:
+        result["arguments"] = {}
+        result["error"] = f"Tool arguments has unexpected type: {type(func_args).__name__}"
+    
+    return result
+
+
+def parse_mcp_tool_name(func_name: str) -> dict:
+    """Parse an MCP tool name and extract server and tool components.
+    
+    MCP tool names follow the format: mcp_{server}_{tool}
+    where {tool} may contain underscores.
+    
+    Args:
+        func_name: The full function name from the tool call.
+        
+    Returns:
+        A dict with keys: server_name, tool_name, error
+        - server_name: The MCP server name (empty string if invalid)
+        - tool_name: The tool name (empty string if invalid)  
+        - error: Error message if format is invalid, None otherwise
+    """
+    result = {
+        "server_name": "",
+        "tool_name": "",
+        "error": None,
+    }
+    
+    if not func_name:
+        result["error"] = "Tool name is empty"
+        return result
+    
+    if not func_name.startswith("mcp_"):
+        result["error"] = f"Tool '{func_name}' is not an MCP tool (must start with 'mcp_')"
+        return result
+    
+    # Split into parts: mcp, server, tool (where tool may have underscores)
+    parts = func_name.split("_", 2)
+    
+    if len(parts) < 3:
+        result["error"] = (
+            f"Invalid MCP tool name format: '{func_name}'. "
+            f"Expected format: mcp_{{server}}_{{tool}}"
+        )
+        return result
+    
+    server_name = parts[1]
+    tool_name = parts[2]
+    
+    if not server_name:
+        result["error"] = f"MCP tool name '{func_name}' has empty server name"
+        return result
+    
+    if not tool_name:
+        result["error"] = f"MCP tool name '{func_name}' has empty tool name"
+        return result
+    
+    result["server_name"] = server_name
+    result["tool_name"] = tool_name
+    return result
+
+
+def execute_tool_call(
+    func_name: str,
+    args: dict,
+    mcp_manager: "MCPManager | None",
+) -> dict:
+    """Execute a tool call with comprehensive error handling.
+    
+    Args:
+        func_name: The function name to execute.
+        args: The arguments to pass to the function.
+        mcp_manager: The MCP manager instance (may be None).
+        
+    Returns:
+        A dict with keys: success, result, error
+        - success: True if execution succeeded
+        - result: The result string from the tool (empty if failed)
+        - error: Error message if execution failed, None otherwise
+    """
+    result = {
+        "success": False,
+        "result": "",
+        "error": None,
+    }
+    
+    # Check if this is an MCP tool
+    if func_name.startswith("mcp_"):
+        # Validate MCP manager is available
+        if mcp_manager is None:
+            result["error"] = (
+                f"Cannot execute MCP tool '{func_name}': MCP is not enabled. "
+                f"Use --mcp <server> to enable MCP tools."
+            )
+            return result
+        
+        # Parse the MCP tool name
+        parsed = parse_mcp_tool_name(func_name)
+        if parsed["error"]:
+            result["error"] = parsed["error"]
+            return result
+        
+        server_name = parsed["server_name"]
+        tool_name = parsed["tool_name"]
+        
+        # Execute the tool
+        try:
+            tool_result = mcp_manager.execute_tool(server_name, tool_name, args)
+            result["success"] = True
+            result["result"] = tool_result
+        except MCPServerError as e:
+            result["error"] = f"MCP server error ({server_name}): {e}"
+        except Exception as e:
+            result["error"] = f"Unexpected error executing tool '{func_name}': {e}"
+    else:
+        # Non-MCP tool - not supported in this context
+        result["error"] = (
+            f"Unknown tool: '{func_name}'. "
+            f"Only MCP tools (mcp_*) are supported when using --mcp."
+        )
+    
+    return result
+
+
+def format_tool_error(error_type: str, tool_name: str, details: str | None = None) -> str:
+    """Format a tool error message for display and sending back to the model.
+    
+    Args:
+        error_type: Type of error (json_parse, invalid_tool_name, execution, unknown_tool)
+        tool_name: The name of the tool that failed
+        details: Additional error details
+        
+    Returns:
+        A formatted error message string
+    """
+    messages = {
+        "json_parse": f"Error: Failed to parse JSON arguments for tool '{tool_name}'",
+        "invalid_tool_name": f"Error: Invalid tool name format '{tool_name}'",
+        "execution": f"Error executing tool '{tool_name}'",
+        "unknown_tool": f"Error: Unknown tool '{tool_name}'",
+    }
+    
+    base_message = messages.get(error_type, f"Error with tool '{tool_name}'")
+    
+    if details:
+        return f"{base_message}: {details}"
+    return base_message
+
+
 def read_image_as_base64(path: str) -> tuple[str, str]:
     """Read an image file and return base64 data and media type."""
     p = Path(path).expanduser()
@@ -358,33 +560,49 @@ def chat(
 
                         # Execute each tool call
                         for tool_call in message.tool_calls:
-                            tc_id = tool_call.get("id", "")
-                            func_data = tool_call.get("function", {})
-                            func_name = func_data.get("name", "")
-                            func_args = func_data.get("arguments", "{}")
+                            # Parse the tool call with error handling
+                            parsed = parse_tool_call(tool_call)
+                            tc_id = parsed["id"]
+                            func_name = parsed["name"]
+                            args = parsed["arguments"]
                             
-                            try:
-                                args = json.loads(func_args) if isinstance(func_args, str) else func_args
-                            except json.JSONDecodeError:
-                                args = {}
+                            # Check for parsing errors
+                            if parsed["error"]:
+                                if not quiet:
+                                    console.print(f"[yellow]Warning: {parsed['error']}[/yellow]")
+                                # If we couldn't parse the function name, we can't proceed
+                                if not func_name:
+                                    result = format_tool_error(
+                                        "json_parse", 
+                                        func_name or "(unknown)", 
+                                        parsed["error"]
+                                    )
+                                    messages.append({
+                                        "role": "tool",
+                                        "tool_call_id": tc_id,
+                                        "content": result,
+                                    })
+                                    continue
 
-                            if not quiet:
+                            if verbose:
+                                console.print(f"[dim]Tool call: {func_name}[/dim]")
+                                console.print(f"[dim]Arguments: {json.dumps(args, indent=2)}[/dim]")
+                            elif not quiet:
                                 console.print(f"[dim]Calling tool: {func_name}[/dim]")
 
-                            # Parse MCP tool name: mcp_{server}_{tool}
-                            if func_name.startswith("mcp_"):
-                                parts = func_name.split("_", 2)
-                                if len(parts) >= 3:
-                                    server_name = parts[1]
-                                    tool_name = parts[2]
-                                    try:
-                                        result = mcp_manager.execute_tool(server_name, tool_name, args)
-                                    except MCPServerError as e:
-                                        result = f"Error: {e}"
-                                else:
-                                    result = f"Error: Invalid MCP tool name format: {func_name}"
+                            # Execute the tool call
+                            exec_result = execute_tool_call(func_name, args, mcp_manager)
+                            
+                            if exec_result["success"]:
+                                result = exec_result["result"]
+                                if verbose:
+                                    # Truncate long results for display
+                                    display_result = result[:500] + "..." if len(result) > 500 else result
+                                    console.print(f"[dim]Result: {display_result}[/dim]")
                             else:
-                                result = f"Error: Unknown tool: {func_name}"
+                                result = f"Error: {exec_result['error']}"
+                                if not quiet:
+                                    console.print(f"[red]{result}[/red]")
 
                             # Add tool result
                             messages.append({
@@ -488,3 +706,4 @@ def chat(
 def chat_command(ctx: click.Context) -> None:
     """Send a chat completion request."""
     ctx.invoke(chat)
+    
