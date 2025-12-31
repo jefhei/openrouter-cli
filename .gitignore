@@ -24,3 +24,4 @@ htmlcov/
 # Config (don't commit real API keys)
 .env
 *.local.toml
+TODO.md
