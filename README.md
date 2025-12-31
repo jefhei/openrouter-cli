@@ -1,12 +1,12 @@
 # OpenRouter CLI
 
-A command-line interface for interacting with [OpenRouter](https://openrouter.ai) â€” a unified API gateway providing access to 400+ AI models from multiple providers.
+A command-line interface for interacting with [OpenRouter](https://openrouter.ai) a unified API gateway providing access to 400+ AI models from multiple providers.
 
 ## Features
 
 - **Chat completions** with any supported model
 - **Streaming responses** for real-time output
-- **Model discovery** â€” list, search, and inspect available models
+- **Model discovery** list, search, and inspect available models
 - **Multi-turn conversations** with session persistence
 - **Cost tracking** and usage monitoring
 - **Configurable parameters** (temperature, max tokens, top_p, etc.)
@@ -236,7 +236,7 @@ openrouter chat --verbose "Hello"
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OPENROUTER_API_KEY` | Your API key | â€” |
+| `OPENROUTER_API_KEY` | Your API key |  |
 | `OPENROUTER_MODEL` | Default model | `openai/gpt-4o-mini` |
 | `OPENROUTER_BASE_URL` | API base URL | `https://openrouter.ai/api/v1` |
 | `OPENROUTER_TIMEOUT` | Request timeout (seconds) | `120` |
@@ -513,7 +513,7 @@ allowed_tools = ["read_file", "list_directory", "search_files"]
 
 ### Security Considerations
 
-> âš ï¸ **Important**: MCP filesystem access gives AI models the ability to read and potentially modify files on your system.
+**Important**: MCP filesystem access gives AI models the ability to read and potentially modify files on your system.
 
 **Best Practices:**
 
@@ -792,7 +792,7 @@ GITHUB_PERSONAL_ACCESS_TOKEN = "ghp_your_token_here"
 
 ### Security Considerations
 
-> ⚠️ **Important**: GitHub MCP gives AI models access to your GitHub account based on your token's permissions.
+**Important**: GitHub MCP gives AI models access to your GitHub account based on your token's permissions.
 
 **Best Practices:**
 
