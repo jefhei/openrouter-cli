@@ -27,3 +27,5 @@ htmlcov/
 TODO.md
 __pycache__/
 *.pyc
+__pycache__/
+*.pyc
