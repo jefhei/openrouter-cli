@@ -25,3 +25,5 @@ htmlcov/
 .env
 *.local.toml
 TODO.md
+__pycache__/
+*.pyc
