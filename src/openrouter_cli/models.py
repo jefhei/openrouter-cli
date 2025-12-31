@@ -121,9 +121,9 @@ class GenerationStats(BaseModel):
 
 class AccountBalance(BaseModel):
     """Account balance information."""
-
-    credits: float = Field(description="Available credits in USD")
-    usage: float = Field(description="Total usage in USD")
+    credits: float | None = None
+    usage: float | None = None
+    limit: float | None = None  # Add this field
 
 
 class Conversation(BaseModel):

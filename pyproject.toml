@@ -49,8 +49,8 @@ dev = [
 openrouter = "openrouter_cli.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/your-username/openrouter-cli"
-Documentation = "https://github.com/your-username/openrouter-cli#readme"
+Homepage = "https://github.com/jefhei/openrouter-cli"
+Documentation = "https://github.com/jefhei/openrouter-cli#readme"
 Repository = "https://github.com/jefhei/openrouter-cli"
 Issues = "https://github.com/jefhei/openrouter-cli/issues"
 
