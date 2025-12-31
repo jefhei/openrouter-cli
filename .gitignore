@@ -29,3 +29,6 @@ __pycache__/
 *.pyc
 __pycache__/
 *.pyc
+mcp/__pycache__/
+commands/__pycache__/
+utils/__pycache__/
