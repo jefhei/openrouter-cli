@@ -425,31 +425,88 @@ class OpenRouterClient:
         response = self.client.get("/auth/key")
         self._handle_error(response)
         data = response.json()["data"]
+    
+        # Handle None values - API returns null for limit on pay-as-you-go accounts
+        limit = data.get("limit")
+        usage = data.get("usage") or 0.0
+    
+        # If limit is None, user has pay-as-you-go (no pre-purchased credits)
+        if limit is None:
+            credits = None  # Indicates unlimited/pay-as-you-go
+        else:
+            credits = limit - usage
+    
         return AccountBalance(
-            credits=data.get("limit", 0) - data.get("usage", 0),
-            usage=data.get("usage", 0),
+            credits=credits,
+            usage=usage,
+            limit=limit,  # Add this field to track account type
         )
 
+    async def aclose(self) -> None:
+        """Close the HTTP clients asynchronously.
+        
+        This is the preferred method for cleanup in async contexts.
+        Use this method or the async context manager (async with) when
+        working with async operations.
+        """
+        if self._client:
+            self._client.close()
+            self._client = None
+        if self._async_client:
+            await self._async_client.aclose()
+            self._async_client = None
+
     def close(self) -> None:
-        """Close the HTTP clients."""
+        """Close the HTTP clients.
+        
+        For proper async client cleanup in async contexts, prefer using
+        `aclose()` or the async context manager (`async with`).
+        
+        When called from a sync context with an existing async client,
+        this method will attempt to close it gracefully but may emit
+        a ResourceWarning if cleanup fails.
+        """
         if self._client:
             self._client.close()
             self._client = None
         if self._async_client:
             import asyncio
+            import warnings
 
+            async_client = self._async_client
+            self._async_client = None  # Clear reference immediately
+            
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(self._async_client.aclose())
-                else:
-                    loop.run_until_complete(self._async_client.aclose())
-            except Exception:
-                pass
-            self._async_client = None
+                # Check if we're inside a running event loop
+                try:
+                    loop = asyncio.get_running_loop()
+                    # We're in an async context - schedule cleanup as a task
+                    # The task will complete after close() returns
+                    loop.create_task(async_client.aclose())
+                except RuntimeError:
+                    # No running loop - safe to run synchronously
+                    asyncio.run(async_client.aclose())
+            except Exception as e:
+                # Emit warning instead of silently failing
+                warnings.warn(
+                    f"Failed to cleanly close async client: {e}. "
+                    "Consider using 'async with' or calling aclose() directly.",
+                    ResourceWarning,
+                    stacklevel=2,
+                )
 
     def __enter__(self) -> "OpenRouterClient":
+        """Sync context manager entry."""
         return self
 
     def __exit__(self, *args: Any) -> None:
+        """Sync context manager exit."""
         self.close()
+
+    async def __aenter__(self) -> "OpenRouterClient":
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        """Async context manager exit."""
+        await self.aclose()
