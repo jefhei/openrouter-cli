@@ -3,6 +3,7 @@
 import base64
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,16 @@ from ..models import Message
 from ..utils.streaming import create_printer
 from ..utils.formatting import format_cost, print_error, print_info
 from .conversations import load_conversation, save_conversation
+
+
+@dataclass
+class MessageStats:
+    """Statistics from a single message exchange."""
+    
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    cost: float = 0.0
 
 
 console = Console()
@@ -451,9 +462,10 @@ def chat(
     if system and not any(m.get("role") == "system" for m in messages):
         messages.insert(0, {"role": "system", "content": system})
 
-    def send_message(user_prompt: str) -> str | None:
-        """Send a message and return the response."""
+    def send_message(user_prompt: str) -> tuple[str | None, MessageStats]:
+        """Send a message and return the response with stats."""
         nonlocal messages
+        stats = MessageStats()
 
         # Build user message content
         content = build_message_content(user_prompt, image, image_url)
@@ -469,7 +481,7 @@ def chat(
             estimated_tokens = len(text_content) // 4
             print_info(f"Estimated prompt tokens: ~{estimated_tokens}")
             print_info("(Dry run - request not sent)")
-            return None
+            return None, stats
 
         if verbose:
             console.print("[dim]Request:[/dim]")
@@ -511,24 +523,32 @@ def chat(
 
                 printer.finish()
 
-                if show_cost and generation_id:
+                # Try to get generation stats (works for streaming mode)
+                if generation_id:
                     try:
-                        stats = client.get_generation_stats(generation_id)
-                        printer.print_metadata(
-                            model=model_used,
-                            cost=stats.total_cost,
-                            tokens={
-                                "prompt": stats.tokens_prompt,
-                                "completion": stats.tokens_completion,
-                                "total": stats.tokens_prompt + stats.tokens_completion,
-                            },
-                        )
+                        gen_stats = client.get_generation_stats(generation_id)
+                        stats.prompt_tokens = gen_stats.tokens_prompt
+                        stats.completion_tokens = gen_stats.tokens_completion
+                        stats.total_tokens = gen_stats.tokens_prompt + gen_stats.tokens_completion
+                        stats.cost = gen_stats.total_cost
+                        
+                        if show_cost:
+                            printer.print_metadata(
+                                model=model_used,
+                                cost=stats.cost,
+                                tokens={
+                                    "prompt": stats.prompt_tokens,
+                                    "completion": stats.completion_tokens,
+                                    "total": stats.total_tokens,
+                                },
+                            )
                     except Exception:
+                        # Stats unavailable - keep defaults of 0
                         pass
 
                 # Add assistant response to messages
                 messages.append({"role": "assistant", "content": full_response})
-                return full_response
+                return full_response, stats
 
             else:
                 # Non-streaming with tool call loop
@@ -553,6 +573,20 @@ def chat(
 
                     # Check for tool calls
                     if message.tool_calls and mcp_manager:
+                        # Accumulate stats from this intermediate response
+                        if response.usage:
+                            stats.prompt_tokens += response.usage.prompt_tokens or 0
+                            stats.completion_tokens += response.usage.completion_tokens or 0
+                            stats.total_tokens += response.usage.total_tokens or 0
+                        
+                        # Try to get cost from generation stats
+                        if response.id:
+                            try:
+                                gen_stats = client.get_generation_stats(response.id)
+                                stats.cost += gen_stats.total_cost
+                            except Exception:
+                                pass
+
                         # Add assistant message with tool calls
                         assistant_msg = {"role": "assistant", "content": message.content or ""}
                         assistant_msg["tool_calls"] = message.tool_calls
@@ -622,13 +656,29 @@ def chat(
                         if isinstance(content, str):
                             console.print(content)
 
-                    if show_cost and response.usage:
+                    # Capture usage stats from this response
+                    if response.usage:
+                        stats.prompt_tokens += response.usage.prompt_tokens or 0
+                        stats.completion_tokens += response.usage.completion_tokens or 0
+                        stats.total_tokens += response.usage.total_tokens or 0
+
+                    # Try to get cost from generation stats
+                    if response.id:
+                        try:
+                            gen_stats = client.get_generation_stats(response.id)
+                            stats.cost += gen_stats.total_cost
+                        except Exception:
+                            # Cost unavailable - keep accumulated value
+                            pass
+
+                    if show_cost and (stats.total_tokens > 0 or stats.cost > 0):
                         printer.print_metadata(
                             model=response.model,
+                            cost=stats.cost if stats.cost > 0 else None,
                             tokens={
-                                "prompt": response.usage.prompt_tokens,
-                                "completion": response.usage.completion_tokens,
-                                "total": response.usage.total_tokens,
+                                "prompt": stats.prompt_tokens,
+                                "completion": stats.completion_tokens,
+                                "total": stats.total_tokens,
                             },
                         )
 
@@ -637,8 +687,8 @@ def chat(
                     messages.append({"role": "assistant", "content": assistant_content})
 
                     if isinstance(assistant_content, str):
-                        return assistant_content
-                    return str(assistant_content) if assistant_content else ""
+                        return assistant_content, stats
+                    return str(assistant_content) if assistant_content else "", stats
 
         except OpenRouterError as e:
             print_error(str(e))
@@ -652,6 +702,10 @@ def chat(
                 raise SystemExit(6)
             else:
                 raise SystemExit(1)
+
+    # Track cumulative stats for the session
+    session_tokens = 0
+    session_cost = 0.0
 
     try:
         if interactive:
@@ -669,7 +723,9 @@ def chat(
                         continue
 
                     console.print()
-                    send_message(user_input)
+                    _, msg_stats = send_message(user_input)
+                    session_tokens += msg_stats.total_tokens
+                    session_cost += msg_stats.cost
                     console.print()
 
                 except EOFError:
@@ -679,7 +735,9 @@ def chat(
                     break
 
         elif prompt:
-            send_message(prompt)
+            _, msg_stats = send_message(prompt)
+            session_tokens += msg_stats.total_tokens
+            session_cost += msg_stats.cost
 
         # Save conversation if named
         if conversation and messages:
@@ -693,9 +751,17 @@ def chat(
                 )
 
             conv.messages = [MsgModel.model_validate(m) for m in messages]
+            
+            # Update conversation totals with session stats
+            conv.total_tokens += session_tokens
+            conv.total_cost += session_cost
+            
             save_conversation(conv)
             if not quiet:
                 print_info(f"Conversation saved as '{conversation}'")
+                if session_tokens > 0 or session_cost > 0:
+                    cost_str = f", ${session_cost:.6f}" if session_cost > 0 else ""
+                    print_info(f"Session: {session_tokens} tokens{cost_str} | Total: {conv.total_tokens} tokens, ${conv.total_cost:.6f}")
 
     finally:
         client.close()
@@ -706,4 +772,3 @@ def chat(
 def chat_command(ctx: click.Context) -> None:
     """Send a chat completion request."""
     ctx.invoke(chat)
-    
